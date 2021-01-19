@@ -21,17 +21,41 @@ def main():
     parser = argparse.ArgumentParser(description='Outcome Correlations)')
     parser.add_argument('--dataset', type=str)
     parser.add_argument('--method', type=str)
+    parser.add_argument("--competition", action="store_true")
     args = parser.parse_args()
     
-    dataset = PygNodePropPredDataset(name=f'ogbn-{args.dataset}')
-    data = dataset[0]
+    if not args.competition:
+        dataset = PygNodePropPredDataset(name=f'ogbn-{args.dataset}')
+        data = dataset[0]
+        split_idx = dataset.get_idx_split()
+    else:
+        from torch_geometric.data import Data
+        import pandas as pd
+
+        node_feat = np.load("gat/dataset/ogbn_arxiv/pgl/feat.npy")
+        edges = pd.read_csv("gat/dataset/ogbn_arxiv/pgl/edges.csv", header=None, names=["src", "dst"]).values
+        edges = torch.from_numpy(np.array([edges[:, 0], edges[:, 1]]))
+
+        df = pd.read_csv("gat/dataset/ogbn_arxiv/pgl/train.csv")
+        node_index = df["nid"].values
+        labels = np.zeros(node_feat.shape[0], dtype=int)
+        for k, v in enumerate(df["nid"]):
+            labels[v] = df["label"][k]
+        labels = torch.from_numpy(labels).reshape((len(labels) ,1))
+
+        data = Data(x = torch.from_numpy(node_feat), y = labels, edge_index = edges)
+
+        train_part = int(len(node_index) * 0.8)
+        train_idx = torch.from_numpy(node_index[:train_part])
+        val_idx = torch.from_numpy(node_index[train_part:])
+        test_idx = val_idx
+        split_idx = {'train': train_idx, 'valid': val_idx, 'test': test_idx}
     
     adj, D_isqrt = process_adj(data)
     normalized_adjs = gen_normalized_adjs(adj, D_isqrt)
     DAD, DA, AD = normalized_adjs
     evaluator = Evaluator(name=f'ogbn-{args.dataset}')
     
-    split_idx = dataset.get_idx_split()
   
     def eval_test(result, idx=split_idx['test']):
         return evaluator.eval({'y_true': data.y[idx],'y_pred': result[idx].argmax(dim=-1, keepdim=True),})['acc']

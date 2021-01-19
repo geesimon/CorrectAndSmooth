@@ -16,7 +16,12 @@ from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 from ogb.nodeproppred import DglNodePropPredDataset, Evaluator
 from outcome_correlation import prepare_folder
 
+
 from models import GAT
+
+import dgl
+import pandas as pd
+import numpy as np
 
 device = None
 in_feats, n_classes = None, None
@@ -256,12 +261,37 @@ def main():
         device = th.device("cuda:%d" % args.gpu)
 
     # load data
-    data = DglNodePropPredDataset(name="ogbn-arxiv")
+    # data = DglNodePropPredDataset(name="ogbn-arxiv")
+    # evaluator = Evaluator(name="ogbn-arxiv")
+
+    # splitted_idx = data.get_idx_split()
+    # train_idx, val_idx, test_idx = splitted_idx["train"], splitted_idx["valid"], splitted_idx["test"]
+    # graph, labels = data[0]
+
+    # Added by Simon -- Start
     evaluator = Evaluator(name="ogbn-arxiv")
 
-    splitted_idx = data.get_idx_split()
-    train_idx, val_idx, test_idx = splitted_idx["train"], splitted_idx["valid"], splitted_idx["test"]
-    graph, labels = data[0]
+    edges = pd.read_csv("dataset/ogbn_arxiv/pgl/edges.csv", header=None, names=["src", "dst"]).values
+    graph = dgl.graph((edges[:, 0], edges[:, 1]))
+
+    node_feat = np.load("dataset/ogbn_arxiv/pgl/feat.npy")
+    graph.ndata['feat'] = th.from_numpy(node_feat)
+
+    df = pd.read_csv("dataset/ogbn_arxiv/pgl/train.csv")
+    node_index = df["nid"].values
+    labels = np.zeros(node_feat.shape[0], dtype=int)
+    for k, v in enumerate(df["nid"]):
+        labels[v] = df["label"][k]
+
+    labels = th.from_numpy(labels).reshape((len(labels) ,1))
+
+    train_part = int(len(node_index) * 0.8)
+    train_idx = th.from_numpy(node_index[:train_part])
+    val_idx = th.from_numpy(node_index[train_part:])
+    
+    test_idx = val_idx
+    # test_idx = th.from_numpy(pd.read_csv("dataset/ogbn_arxiv/pgl/test.csv")["nid"].values)
+    # Added by Simon -- End
 
     # add reverse edges
     srcs, dsts = graph.all_edges()
