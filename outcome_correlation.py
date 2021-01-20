@@ -22,7 +22,7 @@ import glob
 from collections.abc import Iterable
 import joblib
 
-
+import pandas as pd
 
 class SimpleLogger(object):
     def __init__(self, desc, param_names, num_values=2):
@@ -243,16 +243,27 @@ def only_outcome_correlation(data, model_out, split_idx, A, alpha, num_propagati
     result = general_outcome_correlation(adj=A, y=y, alpha=alpha, num_propagations=num_propagations, post_step=lambda x: torch.clamp(x, 0, 1), alpha_term=True, display=display, device=device)
     return res_result, result
     
+
+def save_results(file_name, all_results, test_ids):
+    test_results = pd.DataFrame(data={
+                            "nid": test_ids,
+                            "label": all_results[test_ids].argmax(dim=-1).numpy()
+                        })
     
+    test_results.to_csv(file_name, index=False)
+
 def evaluate_params(data, eval_test, model_outs, split_idx, params, fn=double_correlation_autoscale):
+    test_ids = pd.read_csv("gat/dataset/ogbn_arxiv/pgl/test.csv")["nid"].values
+
     logger = SimpleLogger('evaluate params', [], 2)
 
-    for out in model_outs:
+    for i, out in enumerate(model_outs):
         model_out, run = model_load(out)
         if isinstance(model_out, tuple):
             model_out, t = model_out
             split_idx = t
         res_result, result = fn(data, model_out, split_idx, **params)
+        save_results('submit_' + str(i) + '.csv', result, test_ids)
         valid_acc, test_acc = eval_test(result, split_idx['valid']), eval_test(result, split_idx['test'])
         print(f"Valid: {valid_acc}, Test: {test_acc}")
         logger.add_result(run, (), (valid_acc, test_acc))

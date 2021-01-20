@@ -253,6 +253,7 @@ def main():
     argparser.add_argument("--wd", type=float, default=0)
     argparser.add_argument("--log-every", type=int, default=20)
     argparser.add_argument("--plot-curves", action="store_true")
+    argparser.add_argument("--competition", action="store_true")
     args = argparser.parse_args()
 
     if args.cpu:
@@ -261,37 +262,37 @@ def main():
         device = th.device("cuda:%d" % args.gpu)
 
     # load data
-    # data = DglNodePropPredDataset(name="ogbn-arxiv")
-    # evaluator = Evaluator(name="ogbn-arxiv")
+    if not args.competition:
+        data = DglNodePropPredDataset(name="ogbn-arxiv")
+        evaluator = Evaluator(name="ogbn-arxiv")
 
-    # splitted_idx = data.get_idx_split()
-    # train_idx, val_idx, test_idx = splitted_idx["train"], splitted_idx["valid"], splitted_idx["test"]
-    # graph, labels = data[0]
+        splitted_idx = data.get_idx_split()
+        train_idx, val_idx, test_idx = splitted_idx["train"], splitted_idx["valid"], splitted_idx["test"]
+        graph, labels = data[0]
+    else:
+        evaluator = Evaluator(name="ogbn-arxiv")
 
-    # Added by Simon -- Start
-    evaluator = Evaluator(name="ogbn-arxiv")
+        edges = pd.read_csv("dataset/ogbn_arxiv/pgl/edges.csv", header=None, names=["src", "dst"]).values
+        graph = dgl.graph((edges[:, 0], edges[:, 1]))
 
-    edges = pd.read_csv("dataset/ogbn_arxiv/pgl/edges.csv", header=None, names=["src", "dst"]).values
-    graph = dgl.graph((edges[:, 0], edges[:, 1]))
+        node_feat = np.load("dataset/ogbn_arxiv/pgl/feat.npy")
+        graph.ndata['feat'] = th.from_numpy(node_feat)
 
-    node_feat = np.load("dataset/ogbn_arxiv/pgl/feat.npy")
-    graph.ndata['feat'] = th.from_numpy(node_feat)
+        df = pd.read_csv("dataset/ogbn_arxiv/pgl/train.csv")
+        node_index = df["nid"].values
+        labels = np.zeros(node_feat.shape[0], dtype=int)
+        for k, v in enumerate(df["nid"]):
+            labels[v] = df["label"][k]
 
-    df = pd.read_csv("dataset/ogbn_arxiv/pgl/train.csv")
-    node_index = df["nid"].values
-    labels = np.zeros(node_feat.shape[0], dtype=int)
-    for k, v in enumerate(df["nid"]):
-        labels[v] = df["label"][k]
+        labels = th.from_numpy(labels).reshape((len(labels) ,1))
 
-    labels = th.from_numpy(labels).reshape((len(labels) ,1))
-
-    train_part = int(len(node_index) * 0.8)
-    train_idx = th.from_numpy(node_index[:train_part])
-    val_idx = th.from_numpy(node_index[train_part:])
-    
-    test_idx = val_idx
-    # test_idx = th.from_numpy(pd.read_csv("dataset/ogbn_arxiv/pgl/test.csv")["nid"].values)
-    # Added by Simon -- End
+        train_part = int(len(node_index) * 0.8)
+        # train_idx = th.from_numpy(node_index[:train_part])
+        train_idx = th.from_numpy(node_index)
+        val_idx = th.from_numpy(node_index[train_part:])
+        
+        test_idx = val_idx
+        # test_idx = th.from_numpy(pd.read_csv("dataset/ogbn_arxiv/pgl/test.csv")["nid"].values)
 
     # add reverse edges
     srcs, dsts = graph.all_edges()
