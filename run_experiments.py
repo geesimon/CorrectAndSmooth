@@ -46,7 +46,8 @@ def main():
         data = Data(x = torch.from_numpy(node_feat), y = labels, edge_index = edges)
 
         train_part = int(len(node_index) * 0.8)
-        train_idx = torch.from_numpy(node_index[:train_part])
+        #train_idx = torch.from_numpy(node_index[:train_part])
+        train_idx = torch.from_numpy(node_index)
         val_idx = torch.from_numpy(node_index[train_part:])
         test_idx = val_idx
         split_idx = {'train': train_idx, 'valid': val_idx, 'test': test_idx}

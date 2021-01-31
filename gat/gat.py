@@ -287,7 +287,7 @@ def main():
         labels = th.from_numpy(labels).reshape((len(labels) ,1))
 
         train_part = int(len(node_index) * 0.8)
-        # train_idx = th.from_numpy(node_index[:train_part])
+        #train_idx = th.from_numpy(node_index[:train_part])
         train_idx = th.from_numpy(node_index)
         val_idx = th.from_numpy(node_index[train_part:])
         

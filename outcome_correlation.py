@@ -254,6 +254,7 @@ def save_results(file_name, all_results, test_ids):
 
 def evaluate_params(data, eval_test, model_outs, split_idx, params, fn=double_correlation_autoscale):
     test_ids = pd.read_csv("gat/dataset/ogbn_arxiv/pgl/test.csv")["nid"].values
+    ensemble_results = None
 
     logger = SimpleLogger('evaluate params', [], 2)
 
@@ -263,12 +264,20 @@ def evaluate_params(data, eval_test, model_outs, split_idx, params, fn=double_co
             model_out, t = model_out
             split_idx = t
         res_result, result = fn(data, model_out, split_idx, **params)
+        if ensemble_results is None:
+            ensemble_results = result
+        else:
+            ensemble_results += result
+
         save_results('submit_' + str(i) + '.csv', result, test_ids)
         valid_acc, test_acc = eval_test(result, split_idx['valid']), eval_test(result, split_idx['test'])
         print(f"Valid: {valid_acc}, Test: {test_acc}")
         logger.add_result(run, (), (valid_acc, test_acc))
     print('Valid acc -> Test acc')
     logger.display()
+
+    save_results('submit_ensemble.csv', ensemble_results, test_ids)
+
     return logger
         
 
